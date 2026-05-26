@@ -22,6 +22,9 @@ describe("loadConfig", () => {
     assert.strictEqual(config.nudgeInterval, 10);
     assert.strictEqual(config.reviewRecentMessages, 0);
     assert.strictEqual(config.reviewEnabled, true);
+    assert.strictEqual(config.logBackgroundSessions, true);
+    assert.strictEqual(config.backgroundModels, undefined);
+    assert.strictEqual(config.backgroundSessionDir, undefined);
     assert.strictEqual(config.flushOnCompact, true);
     assert.strictEqual(config.flushOnShutdown, true);
     assert.strictEqual(config.flushMinTurns, 6);
@@ -124,6 +127,60 @@ describe("loadConfig", () => {
     }));
     config = loadConfig(TEST_CONFIG_PATH);
     assert.strictEqual(config.projectsMemoryDir, "projects-memory");
+  });
+
+  it("accepts background model override arrays and filters no-op entries", () => {
+    fs.mkdirSync(path.dirname(TEST_CONFIG_PATH), { recursive: true });
+
+    fs.writeFileSync(TEST_CONFIG_PATH, JSON.stringify({
+      backgroundModels: ["anthropic/claude-haiku-4-5", "openai/gpt-4.1-mini"],
+    }));
+    let config = loadConfig(TEST_CONFIG_PATH);
+    assert.deepStrictEqual(config.backgroundModels, ["anthropic/claude-haiku-4-5", "openai/gpt-4.1-mini"]);
+
+    fs.writeFileSync(TEST_CONFIG_PATH, JSON.stringify({
+      backgroundModels: [],
+    }));
+    config = loadConfig(TEST_CONFIG_PATH);
+    assert.strictEqual(config.backgroundModels, undefined);
+
+    fs.writeFileSync(TEST_CONFIG_PATH, JSON.stringify({
+      backgroundModels: ["  ", "anthropic/foo"],
+    }));
+    config = loadConfig(TEST_CONFIG_PATH);
+    assert.deepStrictEqual(config.backgroundModels, ["anthropic/foo"]);
+  });
+
+  it("accepts background session logging overrides", () => {
+    fs.mkdirSync(path.dirname(TEST_CONFIG_PATH), { recursive: true });
+    fs.writeFileSync(TEST_CONFIG_PATH, JSON.stringify({
+      logBackgroundSessions: false,
+    }));
+
+    const config = loadConfig(TEST_CONFIG_PATH);
+    assert.strictEqual(config.logBackgroundSessions, false);
+  });
+
+  it("normalizes backgroundSessionDir and ignores empty values", () => {
+    fs.mkdirSync(path.dirname(TEST_CONFIG_PATH), { recursive: true });
+
+    fs.writeFileSync(TEST_CONFIG_PATH, JSON.stringify({
+      backgroundSessionDir: "~/custom/bg",
+    }));
+    let config = loadConfig(TEST_CONFIG_PATH);
+    assert.strictEqual(config.backgroundSessionDir, path.join(os.homedir(), "custom", "bg"));
+
+    fs.writeFileSync(TEST_CONFIG_PATH, JSON.stringify({
+      backgroundSessionDir: "custom-bg",
+    }));
+    config = loadConfig(TEST_CONFIG_PATH);
+    assert.strictEqual(config.backgroundSessionDir, path.join(os.homedir(), ".pi", "agent", "custom-bg"));
+
+    fs.writeFileSync(TEST_CONFIG_PATH, JSON.stringify({
+      backgroundSessionDir: "   ",
+    }));
+    config = loadConfig(TEST_CONFIG_PATH);
+    assert.strictEqual(config.backgroundSessionDir, undefined);
   });
 
   it("handles partial config with all boolean overrides", () => {

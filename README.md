@@ -37,7 +37,7 @@ pi install npm:pi-hermes-memory
 /learn-memory-tool
 ```
 
-## Upgrade Notes (v0.7.10)
+## Upgrade Notes (v0.8.0)
 
 If you’re upgrading from older versions, startup now auto-migrates extension data safely:
 
@@ -49,6 +49,8 @@ This resolves Pi skill index conflicts like:
 - `name "..." does not match parent directory "skills"`
 
 No manual action is needed. Launch Pi once after upgrade to let migration/normalization run.
+
+Also note: background review, correction-save, flush, and consolidation subprocesses now log to a dedicated Pi session directory by default (`~/.pi/agent/sessions/pi-hermes-memory`). Set `logBackgroundSessions: false` if you want to restore the previous `--no-session` behavior.
 
 ## Features
 
@@ -407,7 +409,7 @@ Move behavior:
 
 ## Configuration
 
-Create `~/.pi/agent/hermes-memory-config.json`:
+Create `~/.pi/agent/hermes-memory-config.json` and restart Pi after editing it:
 
 ```json
 {
@@ -423,6 +425,9 @@ Create `~/.pi/agent/hermes-memory-config.json`:
   "nudgeToolCalls": 15,
   "reviewRecentMessages": 0,
   "reviewEnabled": true,
+  "backgroundModels": ["anthropic/claude-haiku-4-5", "openai/gpt-4.1-mini"],
+  "logBackgroundSessions": true,
+  "backgroundSessionDir": "~/.pi/agent/sessions/pi-hermes-memory",
   "memoryOverflowStrategy": "auto-consolidate",
   "autoConsolidate": true,
   "correctionDetection": true,
@@ -452,6 +457,9 @@ Create `~/.pi/agent/hermes-memory-config.json`:
 | `nudgeToolCalls` | `15` | Tool calls between auto-reviews (OR with turns) |
 | `reviewRecentMessages` | `0` | Recent messages included in background review (`0` = all) |
 | `reviewEnabled` | `true` | Enable/disable background learning loop |
+| `backgroundModels` | unset | Ordered fallback chain for background review, compaction flush, correction-save, and consolidation subprocesses. Session-shutdown flush uses only the first configured model so Pi exit is not delayed. Omit or use `[]` to run once with Pi's default model |
+| `logBackgroundSessions` | `true` | Log background subprocesses as Pi sessions. Set to `false` to restore legacy `--no-session` behavior |
+| `backgroundSessionDir` | `~/.pi/agent/sessions/pi-hermes-memory` | Session directory used only for background subprocesses; kept out of the default `pi --resume` picker |
 | `memoryOverflowStrategy` | `auto-consolidate` | Behavior when MEMORY.md, USER.md, or project-scoped memory reaches its character limit: `auto-consolidate` runs the existing consolidation flow; `reject` returns an error; `fifo-evict` rotates older entries in file order until the new entry fits |
 | `autoConsolidate` | `true` | Legacy alias for `memoryOverflowStrategy` when `memoryOverflowStrategy` is not set (`true` = `auto-consolidate`, `false` = `reject`) |
 | `consolidationTimeoutMs` | `60000` | Maximum time in milliseconds for auto-consolidation to complete |
@@ -467,6 +475,22 @@ Create `~/.pi/agent/hermes-memory-config.json`:
 | `flushOnShutdown` | `true` | Flush memories when session ends |
 | `flushMinTurns` | `6` | Minimum turns before flush triggers |
 | `flushRecentMessages` | `0` | Recent messages included in session flush (`0` = all) |
+
+### Background processing
+
+Background review, correction saves, flushes, and auto-consolidation all run in child `pi -p` subprocesses.
+
+```jsonc
+{
+  "backgroundModels": ["anthropic/claude-haiku-4-5", "openai/gpt-4.1-mini"],
+  "logBackgroundSessions": true,
+  "backgroundSessionDir": "~/.pi/agent/sessions/pi-hermes-memory"
+}
+```
+
+- `backgroundModels` is a fallback chain for most background subprocesses. Background review, correction-save, auto-consolidation, and compaction flush retry in order until one succeeds; session-shutdown flush is intentionally capped to one attempt.
+- `logBackgroundSessions` defaults to `true`, so background token usage is now auditable in a dedicated session directory.
+- `backgroundSessionDir` defaults to `~/.pi/agent/sessions/pi-hermes-memory`, which keeps these sessions separate from the main `pi --resume` picker. Use `pi --session-dir <dir> --resume` to inspect them directly.
 
 ## Where Data Lives
 
@@ -491,6 +515,8 @@ Create `~/.pi/agent/hermes-memory-config.json`:
 │   └── another-project/
 │       └── MEMORY.md
 ├── hermes-memory-config.json
+├── sessions/
+│   └── pi-hermes-memory/  ← Background subprocess sessions (default)
 └── ...
 ```
 

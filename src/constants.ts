@@ -9,6 +9,7 @@ export const ENTRY_DELIMITER = "\n§\n";
 
 // ─── Directory names ───
 export const DEFAULT_PROJECTS_MEMORY_DIR = "projects-memory";
+export const DEFAULT_BACKGROUND_SESSION_REL = "sessions/pi-hermes-memory";
 
 // ─── Character limits (not tokens — model-independent) ───
 export const DEFAULT_MEMORY_CHAR_LIMIT = 5000;

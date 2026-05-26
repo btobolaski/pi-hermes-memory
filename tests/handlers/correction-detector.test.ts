@@ -250,6 +250,7 @@ describe("setupCorrectionDetector handler", () => {
     correctionDetection: true,
     nudgeInterval: 10,
     reviewEnabled: false,
+    logBackgroundSessions: false,
     memoryCharLimit: 5000,
     userCharLimit: 5000,
     projectCharLimit: 5000,

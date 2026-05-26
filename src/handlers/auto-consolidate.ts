@@ -10,7 +10,8 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { MemoryStore } from "../store/memory-store.js";
 import { CONSOLIDATION_PROMPT, ENTRY_DELIMITER } from "../constants.js";
-import type { ConsolidationResult } from "../types.js";
+import type { ConsolidationResult, MemoryConfig } from "../types.js";
+import { runBackgroundPi } from "./background-exec.js";
 
 type MemoryTarget = "memory" | "user" | "failure";
 type ToolMemoryTarget = MemoryTarget | "project";
@@ -30,6 +31,7 @@ export async function triggerConsolidation(
   pi: ExtensionAPI,
   store: MemoryStore,
   target: MemoryTarget,
+  config: MemoryConfig,
   signal?: AbortSignal,
   timeoutMs: number = 60000,
   toolTarget: ToolMemoryTarget = target,
@@ -47,10 +49,7 @@ export async function triggerConsolidation(
   ].join("\n");
 
   try {
-    const result = await pi.exec("pi", ["-p", "--no-session", prompt], {
-      signal,
-      timeout: timeoutMs,
-    });
+    const result = await runBackgroundPi(pi, prompt, config, { signal, timeoutMs });
 
     if (result.code === 0) {
       return { consolidated: true };
@@ -73,6 +72,7 @@ export async function triggerConsolidation(
 export function registerConsolidateCommand(
   pi: ExtensionAPI,
   store: MemoryStore,
+  config: MemoryConfig,
   timeoutMs: number = 60000,
   projectStore: MemoryStore | null = null,
   projectName?: string | null,
@@ -108,7 +108,15 @@ export function registerConsolidateCommand(
           continue;
         }
 
-        const result = await triggerConsolidation(pi, item.store, item.target, ctx.signal, timeoutMs, item.toolTarget);
+        const result = await triggerConsolidation(
+          pi,
+          item.store,
+          item.target,
+          config,
+          ctx.signal,
+          timeoutMs,
+          item.toolTarget,
+        );
 
         if (result.consolidated) {
           await item.store.loadFromDisk();

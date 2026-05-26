@@ -1,6 +1,6 @@
 import * as os from "node:os";
 import * as path from "node:path";
-import { DEFAULT_PROJECTS_MEMORY_DIR } from "./constants.js";
+import { DEFAULT_BACKGROUND_SESSION_REL, DEFAULT_PROJECTS_MEMORY_DIR } from "./constants.js";
 
 export const AGENT_ROOT = path.join(os.homedir(), ".pi", "agent");
 
@@ -54,4 +54,25 @@ export function normalizeProjectsMemoryDir(input: string): string | undefined {
 export function resolveProjectsRoot(projectsMemoryDir = DEFAULT_PROJECTS_MEMORY_DIR): string {
   const normalized = normalizeProjectsMemoryDir(projectsMemoryDir) ?? DEFAULT_PROJECTS_MEMORY_DIR;
   return path.join(AGENT_ROOT, normalized);
+}
+
+export function defaultBackgroundSessionDir(): string {
+  return path.join(AGENT_ROOT, ...DEFAULT_BACKGROUND_SESSION_REL.split("/"));
+}
+
+export function normalizeBackgroundSessionDir(input: string): string | undefined {
+  const trimmed = input.trim();
+  if (!trimmed) return undefined;
+
+  const expanded = expandHome(trimmed);
+  if (path.isAbsolute(expanded)) return path.normalize(expanded);
+  return path.resolve(AGENT_ROOT, expanded);
+}
+
+export function resolveBackgroundSessionDir(cfg: { backgroundSessionDir?: string }): string {
+  if (cfg.backgroundSessionDir) {
+    const normalized = normalizeBackgroundSessionDir(cfg.backgroundSessionDir);
+    if (normalized) return normalized;
+  }
+  return defaultBackgroundSessionDir();
 }

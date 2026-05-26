@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-05-26
+
+### Added
+
+- **Configurable background model fallback**: Background review, compaction flush, correction-save, and consolidation subprocesses now accept `backgroundModels` as an ordered fallback chain. If one model exits non-zero or errors, the extension retries the next model automatically. Session-shutdown flush remains single-attempt so Pi exit is not delayed.
+- **Dedicated background session logging**: Background subprocesses now log to `~/.pi/agent/sessions/pi-hermes-memory` by default, making their token usage auditable without cluttering the default `pi --resume` picker.
+- **Shared background subprocess launcher**: All background `pi -p` flows now use a shared helper so session logging, model selection, fallback, and timeouts behave consistently.
+
+### Changed
+
+- **Background sessions are now logged by default**: The old `--no-session` behavior is no longer the default for background subprocesses. Set `logBackgroundSessions: false` in `~/.pi/agent/hermes-memory-config.json` to opt out and restore the previous behavior.
+
 ## [0.7.4] - 2026-05-13
 
 ### Added

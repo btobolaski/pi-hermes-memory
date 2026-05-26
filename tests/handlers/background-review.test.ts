@@ -59,6 +59,7 @@ const defaultConfig = {
   reviewEnabled: true,
   nudgeInterval: 10,
   reviewRecentMessages: 0,
+  logBackgroundSessions: false,
   flushMinTurns: 6,
   flushRecentMessages: 0,
   flushOnCompact: true,

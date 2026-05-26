@@ -32,6 +32,12 @@ export interface MemoryConfig {
   reviewRecentMessages?: number;
   /** Enable background learning loop. Default: true */
   reviewEnabled: boolean;
+  /** Models to try for background subprocesses, in order. Missing/empty means one attempt with Pi's default model. */
+  backgroundModels?: string[];
+  /** Log background subprocesses as Pi sessions to backgroundSessionDir. Default: true */
+  logBackgroundSessions: boolean;
+  /** Directory for background subprocess session files. Default: ~/.pi/agent/sessions/pi-hermes-memory */
+  backgroundSessionDir?: string;
   /** Flush memories before compaction. Default: true */
   flushOnCompact: boolean;
   /** Flush memories on session shutdown. Default: true */

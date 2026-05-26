@@ -48,6 +48,7 @@ function defaultConfig(overrides: Partial<MemoryConfig> = {}): MemoryConfig {
     nudgeInterval: 10,
     reviewRecentMessages: 0,
     reviewEnabled: true,
+    logBackgroundSessions: false,
     flushOnCompact: true,
     flushOnShutdown: true,
     flushMinTurns: 6,
@@ -83,6 +84,11 @@ async function emit(
   for (const h of hs) {
     await h(eventObj, ctx);
   }
+}
+
+function getFlagValue(args: string[], flag: string): string | undefined {
+  const index = args.indexOf(flag);
+  return index >= 0 ? args[index + 1] : undefined;
 }
 
 const mockStore = { getMemoryEntries: () => [], getUserEntries: () => [] } as any;
@@ -137,6 +143,59 @@ describe("setupSessionFlush", () => {
     // Shutdown flush is fire-and-forget — wait for microtask queue to settle
     await new Promise(r => setTimeout(r, 10));
     assert.equal(mockPi.execCalls.length, 1, "exec should be called once");
+  });
+
+  it("session_shutdown only attempts the first configured background model", async () => {
+    const config = defaultConfig({
+      backgroundModels: ["anthropic/claude-haiku-4-5", "openai/gpt-4.1-mini"],
+    });
+    setupSessionFlush(mockPi.pi, mockStore, null, config);
+
+    await emitUserTurns(mockPi.handlers, 8);
+
+    const ctx = { sessionManager: { getBranch: () => mockBranch(8) } };
+    await emit(mockPi.handlers, "session_shutdown", {}, ctx);
+
+    await new Promise(r => setTimeout(r, 10));
+
+    assert.equal(mockPi.execCalls.length, 1, "shutdown should not retry fallback models");
+
+    const [cmd, args, opts] = mockPi.execCalls[0].args;
+    assert.equal(cmd, "pi");
+    assert.equal(getFlagValue(args, "--model"), "anthropic/claude-haiku-4-5");
+    assert.equal(opts.timeout, 10000);
+    assert.equal(opts.signal, undefined);
+  });
+
+  it("session_shutdown is fire-and-forget for slow exec calls", async () => {
+    const slowPi = createMockPi();
+    let releaseExec: (() => void) | undefined;
+
+    slowPi.pi.exec = async (...args: any[]) => {
+      slowPi.execCalls.push({ args });
+      await new Promise<void>((resolve) => {
+        releaseExec = resolve;
+      });
+      return { code: 0, stdout: "", stderr: "" };
+    };
+
+    const config = defaultConfig({
+      backgroundModels: ["anthropic/claude-haiku-4-5", "openai/gpt-4.1-mini"],
+    });
+    setupSessionFlush(slowPi.pi, mockStore, null, config);
+
+    await emitUserTurns(slowPi.handlers, 8);
+
+    const ctx = { sessionManager: { getBranch: () => mockBranch(8) } };
+    const returnedQuickly = await Promise.race([
+      emit(slowPi.handlers, "session_shutdown", {}, ctx).then(() => true),
+      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 25)),
+    ]);
+
+    assert.equal(returnedQuickly, true, "shutdown handler should not block on flush completion");
+    assert.equal(slowPi.execCalls.length, 1, "shutdown should launch one background flush");
+
+    releaseExec?.();
   });
 
   it("session_shutdown does NOT trigger when flushOnShutdown is false", async () => {

@@ -22,8 +22,10 @@
  * See docs/ROADMAP.md for full roadmap and Hermes competitive analysis.
  */
 
+import { existsSync } from "node:fs";
 import * as path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { MemoryConfig } from "./types.js";
 import { MemoryStore } from "./store/memory-store.js";
 import { SkillStore } from "./store/skill-store.js";
 import { DatabaseManager } from "./store/db.js";
@@ -50,7 +52,7 @@ import { detectProject, detectProjectSkills } from "./project.js";
 import { buildPromptContext } from "./prompt-context.js";
 import { migrateLegacyProjectMemoryDirs } from "./project-memory-migration.js";
 import { migrateExtensionRoot } from "./extension-root-migration.js";
-import { AGENT_ROOT } from "./paths.js";
+import { AGENT_ROOT, resolveBackgroundSessionDir } from "./paths.js";
 
 export function resolveProjectSkillDiscovery(
   skillStore: SkillStore,
@@ -74,6 +76,20 @@ export function registerProjectSkillDiscoveryHandler(
   pi.on("resources_discover", async (event, _ctx) => {
     return resolveProjectSkillDiscovery(skillStore, projectsMemoryDir, (event as { cwd?: string }).cwd);
   });
+}
+
+export function isPathInsideDirectory(parentDir: string, candidatePath: string): boolean {
+  const relative = path.relative(path.resolve(parentDir), path.resolve(candidatePath));
+  return relative.length > 0 && !relative.startsWith("..") && !path.isAbsolute(relative);
+}
+
+export function shouldIndexSessionFile(
+  sessionFile: string | undefined,
+  config: Pick<MemoryConfig, "logBackgroundSessions" | "backgroundSessionDir">,
+): sessionFile is string {
+  if (!sessionFile) return false;
+  if (config.logBackgroundSessions === false) return true;
+  return !isPathInsideDirectory(resolveBackgroundSessionDir(config), sessionFile);
 }
 
 export default function (pi: ExtensionAPI) {
@@ -179,15 +195,15 @@ export default function (pi: ExtensionAPI) {
 
   // ── 7. Setup auto-consolidation (inject consolidator into stores) ──
   store.setConsolidator(async (target, signal) => {
-    return triggerConsolidation(pi, store, target, signal, config.consolidationTimeoutMs);
+    return triggerConsolidation(pi, store, target, config, signal, config.consolidationTimeoutMs);
   });
   if (projectStore) {
     projectStore.setConsolidator(async (target, signal) => {
       const toolTarget = target === "memory" ? "project" : target;
-      return triggerConsolidation(pi, projectStore, target, signal, config.consolidationTimeoutMs, toolTarget);
+      return triggerConsolidation(pi, projectStore, target, config, signal, config.consolidationTimeoutMs, toolTarget);
     });
   }
-  registerConsolidateCommand(pi, store, config.consolidationTimeoutMs, projectStore, projectName);
+  registerConsolidateCommand(pi, store, config, config.consolidationTimeoutMs, projectStore, projectName);
 
   // ── 8. Setup correction detection ──
   setupCorrectionDetector(pi, store, projectStore, config, dbManager, projectName);
@@ -210,7 +226,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_shutdown", async (_event, ctx) => {
     try {
       const sessionFile = ctx.sessionManager.getSessionFile();
-      if (sessionFile && require("node:fs").existsSync(sessionFile)) {
+      if (shouldIndexSessionFile(sessionFile, config) && existsSync(sessionFile)) {
         const sessionData = parseSessionFile(sessionFile);
         if (sessionData) {
           indexSession(dbManager, sessionData);

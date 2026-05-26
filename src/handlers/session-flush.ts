@@ -9,6 +9,7 @@ import { MemoryStore } from "../store/memory-store.js";
 import { FLUSH_PROMPT } from "../constants.js";
 import type { MemoryConfig } from "../types.js";
 import { collectMessageParts } from "./message-parts.js";
+import { runBackgroundPi } from "./background-exec.js";
 
 export function setupSessionFlush(
   pi: ExtensionAPI,
@@ -23,7 +24,12 @@ export function setupSessionFlush(
   });
 
   /** Shared flush logic — builds conversation snapshot and spawns pi -p */
-  async function flush(ctx: any, signal?: AbortSignal, timeoutMs = 30000): Promise<void> {
+  async function flush(
+    ctx: any,
+    signal?: AbortSignal,
+    timeoutMs = 30000,
+    maxAttempts?: number,
+  ): Promise<void> {
     if (userTurnCount < config.flushMinTurns) return;
 
     let entries;
@@ -42,9 +48,10 @@ export function setupSessionFlush(
     ].join("\n");
 
     try {
-      await pi.exec("pi", ["-p", "--no-session", flushMessage], {
+      await runBackgroundPi(pi, flushMessage, config, {
         signal,
-        timeout: timeoutMs,
+        timeoutMs,
+        maxAttempts,
       });
     } catch {
       // Best-effort flush — never block shutdown
@@ -62,6 +69,6 @@ export function setupSessionFlush(
     if (!config.flushOnShutdown) return;
     // Fire-and-forget with a short timeout so we don't block Pi's shutdown.
     // We intentionally do NOT await — Pi should not wait for the child process.
-    flush(ctx, undefined, 10000).catch(() => {});
+    flush(ctx, undefined, 10000, 1).catch(() => {});
   });
 }

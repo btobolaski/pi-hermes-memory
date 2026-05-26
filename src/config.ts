@@ -16,7 +16,11 @@ import {
   DEFAULT_FAILURE_INJECTION_MAX_AGE_DAYS,
   DEFAULT_FAILURE_INJECTION_MAX_ENTRIES,
 } from "./constants.js";
-import { normalizeConfiguredMemoryDir, normalizeProjectsMemoryDir } from "./paths.js";
+import {
+  normalizeBackgroundSessionDir,
+  normalizeConfiguredMemoryDir,
+  normalizeProjectsMemoryDir,
+} from "./paths.js";
 
 const MEMORY_OVERFLOW_STRATEGIES: readonly MemoryOverflowStrategy[] = ["auto-consolidate", "reject", "fifo-evict"];
 const SESSION_SEARCH_VARIANTS: readonly SessionSearchVariant[] = ["legacy", "anchors"];
@@ -38,6 +42,7 @@ const DEFAULT_CONFIG: MemoryConfig = {
   nudgeInterval: DEFAULT_NUDGE_INTERVAL,
   reviewRecentMessages: DEFAULT_REVIEW_RECENT_MESSAGES,
   reviewEnabled: true,
+  logBackgroundSessions: true,
   flushOnCompact: true,
   flushOnShutdown: true,
   flushMinTurns: DEFAULT_FLUSH_MIN_TURNS,
@@ -89,6 +94,19 @@ export function loadConfig(configPath = DEFAULT_CONFIG_PATH): MemoryConfig {
       if (typeof parsed.nudgeInterval === "number") config.nudgeInterval = parsed.nudgeInterval;
       if (isNonNegativeNumber(parsed.reviewRecentMessages)) config.reviewRecentMessages = parsed.reviewRecentMessages;
       if (typeof parsed.reviewEnabled === "boolean") config.reviewEnabled = parsed.reviewEnabled;
+      if (typeof parsed.logBackgroundSessions === "boolean") {
+        config.logBackgroundSessions = parsed.logBackgroundSessions;
+      }
+      if (isStringArray(parsed.backgroundModels)) {
+        const cleaned = parsed.backgroundModels
+          .map((model: string) => model.trim())
+          .filter((model: string) => model.length > 0);
+        if (cleaned.length > 0) config.backgroundModels = cleaned;
+      }
+      if (typeof parsed.backgroundSessionDir === "string") {
+        const normalizedBackgroundSessionDir = normalizeBackgroundSessionDir(parsed.backgroundSessionDir);
+        if (normalizedBackgroundSessionDir) config.backgroundSessionDir = normalizedBackgroundSessionDir;
+      }
       if (typeof parsed.flushOnCompact === "boolean") config.flushOnCompact = parsed.flushOnCompact;
       if (typeof parsed.flushOnShutdown === "boolean") config.flushOnShutdown = parsed.flushOnShutdown;
       if (typeof parsed.flushMinTurns === "number") config.flushMinTurns = parsed.flushMinTurns;

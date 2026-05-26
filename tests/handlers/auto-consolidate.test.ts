@@ -9,6 +9,7 @@ import * as path from "node:path";
 import * as os from "node:os";
 import { registerConsolidateCommand, triggerConsolidation } from "../../src/handlers/auto-consolidate.js";
 import { ENTRY_DELIMITER } from "../../src/constants.js";
+import type { MemoryConfig } from "../../src/types.js";
 
 // ─── Mock infrastructure ───
 
@@ -37,6 +38,34 @@ async function settle(ms = 10) {
   await new Promise((r) => setTimeout(r, ms));
 }
 
+function defaultConfig(overrides: Partial<MemoryConfig> = {}): MemoryConfig {
+  return {
+    memoryMode: "policy-only",
+    memoryPolicyStyle: "full",
+    memoryCharLimit: 5000,
+    userCharLimit: 5000,
+    projectCharLimit: 5000,
+    nudgeInterval: 10,
+    reviewRecentMessages: 0,
+    reviewEnabled: true,
+    logBackgroundSessions: false,
+    flushOnCompact: true,
+    flushOnShutdown: true,
+    flushMinTurns: 6,
+    flushRecentMessages: 0,
+    autoConsolidate: true,
+    correctionDetection: true,
+    failureInjectionEnabled: true,
+    failureInjectionMaxAgeDays: 7,
+    failureInjectionMaxEntries: 5,
+    nudgeToolCalls: 15,
+    consolidationTimeoutMs: 60000,
+    ...overrides,
+  };
+}
+
+const backgroundConfig = defaultConfig();
+
 // ─── Tests ───
 
 describe("triggerConsolidation", () => {
@@ -46,7 +75,7 @@ describe("triggerConsolidation", () => {
 
   it("builds prompt with current entries and calls pi.exec", async () => {
     const pi = createMockPi();
-    await triggerConsolidation(pi, mockStore, "memory");
+    await triggerConsolidation(pi, mockStore, "memory", backgroundConfig);
 
     assert.strictEqual(execCalls.length, 1, "should call pi.exec once");
     const [cmd, args] = execCalls[0];
@@ -61,7 +90,7 @@ describe("triggerConsolidation", () => {
 
   it("returns { consolidated: true } on success (exit code 0)", async () => {
     const pi = createMockPi({ code: 0, stdout: "Done", stderr: "" });
-    const result = await triggerConsolidation(pi, mockStore, "memory");
+    const result = await triggerConsolidation(pi, mockStore, "memory", backgroundConfig);
 
     assert.strictEqual(result.consolidated, true);
     assert.strictEqual(result.error, undefined);
@@ -69,7 +98,7 @@ describe("triggerConsolidation", () => {
 
   it("returns { consolidated: false } on failure (non-zero exit code)", async () => {
     const pi = createMockPi({ code: 1, stdout: "", stderr: "some error" });
-    const result = await triggerConsolidation(pi, mockStore, "memory");
+    const result = await triggerConsolidation(pi, mockStore, "memory", backgroundConfig);
 
     assert.strictEqual(result.consolidated, false);
     assert.ok(result.error, "should have error message");
@@ -84,16 +113,16 @@ describe("triggerConsolidation", () => {
       registerCommand: () => {},
     } as any;
 
-    const result = await triggerConsolidation(crashPi, mockStore, "memory");
+    const result = await triggerConsolidation(crashPi, mockStore, "memory", backgroundConfig);
 
     assert.strictEqual(result.consolidated, false);
-    assert.ok(result.error!.includes("Consolidation failed"), "should mention failure");
+    assert.ok(result.error!.includes("code -1"), "should surface helper failure as a failed attempt");
     assert.ok(result.error!.includes("network failure"), "should include original error");
   });
 
   it("includes user profile entries when target is 'user'", async () => {
     const pi = createMockPi();
-    await triggerConsolidation(pi, mockStore, "user");
+    await triggerConsolidation(pi, mockStore, "user", backgroundConfig);
 
     const prompt = execCalls[0][1][execCalls[0][1].length - 1];
     assert.ok(prompt.includes("user fact 1"), "prompt should include user entries");
@@ -102,7 +131,7 @@ describe("triggerConsolidation", () => {
 
   it("can consolidate project memory using the project tool target", async () => {
     const pi = createMockPi();
-    await triggerConsolidation(pi, mockStore, "memory", undefined, 60000, "project");
+    await triggerConsolidation(pi, mockStore, "memory", backgroundConfig, undefined, 60000, "project");
 
     const prompt = execCalls[0][1][execCalls[0][1].length - 1];
     assert.ok(prompt.includes("old entry 1"), "prompt should include project memory entries");
@@ -118,7 +147,7 @@ describe("triggerConsolidation", () => {
     } as any;
 
     const pi = createMockPi();
-    await triggerConsolidation(pi, emptyStore, "memory");
+    await triggerConsolidation(pi, emptyStore, "memory", backgroundConfig);
 
     const prompt = execCalls[0][1][execCalls[0][1].length - 1];
     assert.ok(prompt.includes("(empty)"), "prompt should show (empty) for empty entries");
@@ -153,7 +182,7 @@ describe("registerConsolidateCommand", () => {
       loadFromDisk: async () => { projectReloaded = true; },
     } as any;
 
-    registerConsolidateCommand(pi, mockStore, 60000, projectStore, "demo-project");
+    registerConsolidateCommand(pi, mockStore, backgroundConfig, 60000, projectStore, "demo-project");
     await handler({}, {
       signal: undefined,
       ui: { notify: (message: string) => { notification = message; } },
