@@ -266,10 +266,10 @@ describe("setupSessionFlush", () => {
     assert.equal(cmd, "pi");
     assert.ok(Array.isArray(args));
     assert.equal(args[0], "-p");
-    assert.equal(args[1], "--no-session");
+    assert.ok(args.includes("--no-session"), "should disable session logging");
 
-    // The third arg is the flush message containing the prompt + conversation
-    const flushMessage = args[2];
+    // The last arg is the flush message containing the prompt + conversation
+    const flushMessage = args[args.length - 1];
     assert.ok(flushMessage.includes(FLUSH_PROMPT), "flush message should contain FLUSH_PROMPT");
     assert.ok(flushMessage.includes("[USER]"), "flush message should contain [USER] prefix");
     assert.ok(
@@ -292,7 +292,8 @@ describe("setupSessionFlush", () => {
     const ctx = { sessionManager: { getBranch: () => mockBranch(8) } };
     await emit(mockPi.handlers, "session_before_compact", { signal: undefined }, ctx);
 
-    const flushMessage = mockPi.execCalls[0].args[1][2];
+    const flushArgs = mockPi.execCalls[0].args[1];
+    const flushMessage = flushArgs[flushArgs.length - 1];
     assert.ok(flushMessage.includes("msg 0"), "default should include older messages");
     assert.ok(flushMessage.includes("msg 7"), "default should include latest messages");
   });
@@ -306,7 +307,8 @@ describe("setupSessionFlush", () => {
     const ctx = { sessionManager: { getBranch: () => mockBranch(8) } };
     await emit(mockPi.handlers, "session_before_compact", { signal: undefined }, ctx);
 
-    const flushMessage = mockPi.execCalls[0].args[1][2];
+    const flushArgs = mockPi.execCalls[0].args[1];
+    const flushMessage = flushArgs[flushArgs.length - 1];
     assert.ok(!flushMessage.includes("msg 4"), "window should exclude older messages");
     assert.ok(flushMessage.includes("msg 5"));
     assert.ok(flushMessage.includes("msg 6"));
@@ -322,7 +324,8 @@ describe("setupSessionFlush", () => {
     const ctx = { sessionManager: { getBranch: () => mockBranch(8) } };
     await emit(mockPi.handlers, "session_before_compact", { signal: undefined }, ctx);
 
-    const flushMessage = mockPi.execCalls[0].args[1][2];
+    const flushArgs = mockPi.execCalls[0].args[1];
+    const flushMessage = flushArgs[flushArgs.length - 1];
     assert.ok(flushMessage.includes("msg 0"), "review limit must not affect flush");
   });
 
@@ -380,7 +383,8 @@ describe("setupSessionFlush", () => {
     // exec is still called (flush message just has no conversation lines)
     assert.equal(mockPi.execCalls.length, 1);
 
-    const flushMessage = mockPi.execCalls[0].args[1][2];
+    const flushArgs = mockPi.execCalls[0].args[1];
+    const flushMessage = flushArgs[flushArgs.length - 1];
     assert.ok(flushMessage.includes(FLUSH_PROMPT));
     // No [USER]/[ASSISTANT] prefixes in empty conversation
     assert.ok(!flushMessage.includes("[USER]"), "empty branch should have no [USER]");

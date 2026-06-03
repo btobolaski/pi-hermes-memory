@@ -3,6 +3,10 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { MemoryConfig } from "../types.js";
 import { resolveBackgroundSessionDir } from "../paths.js";
 
+/** Tools allowed for background subprocesses. Restricted to read-only inspection
+ * plus memory tools. File reads are further sandboxed by Pi's permission system. */
+export const BACKGROUND_TOOLS = "find,grep,ls,memory,memory_search,read";
+
 export interface BackgroundExecOptions {
   /** Per-attempt timeout in milliseconds. Applied to each model attempt. */
   timeoutMs: number;
@@ -56,7 +60,7 @@ export async function runBackgroundPi(
   for (const model of chain) {
     if (opts.signal?.aborted) break;
 
-    const args = ["-p", ...sessionFlags];
+    const args = ["-p", ...sessionFlags, "--tools", BACKGROUND_TOOLS];
     if (model) args.push("--model", model);
     args.push(prompt);
 

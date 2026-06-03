@@ -48,9 +48,9 @@ sequenceDiagram
     Note over Pi,SQL: ── Background Learning ──
     Pi->>Extension: turn_end (10 turns or 15 tool calls)
     Extension->>Pi: pi.exec("pi -p", reviewPrompt)
-    Note right of Pi: Review can save memories/failures/skills
+    Note right of Pi: Review restricted to find, grep, ls, read, memory, memory_search only
 
     Note over Pi,SQL: ── Session End ──
     Pi->>Extension: session_shutdown event
     Extension->>Pi: pi.exec("pi -p", flushPrompt)
-    Note right of Pi: final chance to save durable learnings
+    Note right of Pi: Final chance to save durable learnings

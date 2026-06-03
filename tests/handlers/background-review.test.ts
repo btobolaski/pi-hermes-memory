@@ -114,7 +114,8 @@ async function settle(ms = 10) {
 }
 
 function reviewPrompt(index = execCalls.length - 1): string {
-  return execCalls[index][1][2];
+  const args = execCalls[index][1];
+  return args[args.length - 1]; // prompt is always the last arg
 }
 
 // ─── Tests ───

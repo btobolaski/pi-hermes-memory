@@ -4,7 +4,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import type { MemoryConfig } from "../../src/types.js";
-import { runBackgroundPi } from "../../src/handlers/background-exec.js";
+import { runBackgroundPi, BACKGROUND_TOOLS } from "../../src/handlers/background-exec.js";
 
 let execCalls: Array<{ cmd: string; args: string[]; opts: { signal?: AbortSignal; timeout?: number } }>;
 let tempDirs: string[];
@@ -12,6 +12,11 @@ let tempDirs: string[];
 type ExecOutcome =
   | { code: number; stdout?: string; stderr?: string }
   | Error;
+
+function getFlagValue(args: string[], flag: string): string | undefined {
+  const index = args.indexOf(flag);
+  return index >= 0 ? args[index + 1] : undefined;
+}
 
 function createMockPi(outcomes: ExecOutcome[] = [{ code: 0, stdout: "ok", stderr: "" }]) {
   const queue = [...outcomes];
@@ -88,7 +93,8 @@ describe("runBackgroundPi", () => {
     assert.equal(execCalls.length, 1);
     assert.equal(execCalls[0].cmd, "pi");
     assert.equal(execCalls[0].args[0], "-p");
-    assert.ok(!execCalls[0].args.includes("--model"));
+    assert.ok(execCalls[0].args.includes(BACKGROUND_TOOLS));
+    assert.ok(!execCalls[0].args.includes("--model"), "should not include --model");
     assert.equal(result.modelUsed, null);
     assert.deepEqual(result.attemptedModels, ["(default)"]);
   });
@@ -106,7 +112,9 @@ describe("runBackgroundPi", () => {
     );
 
     assert.equal(execCalls.length, 1);
-    assert.deepEqual(execCalls[0].args.slice(0, 6), ["-p", "--session-dir", sessionDir, "--model", model, "prompt"]);
+    assert.ok(execCalls[0].args.includes(BACKGROUND_TOOLS), "should pass --tools allowlist");
+    assert.equal(getFlagValue(execCalls[0].args, "--model"), model);
+    assert.equal(execCalls[0].args.at(-1), "prompt");
     assert.equal(result.modelUsed, model);
     assert.deepEqual(result.attemptedModels, [model]);
   });
@@ -127,8 +135,8 @@ describe("runBackgroundPi", () => {
     );
 
     assert.equal(execCalls.length, 2);
-    assert.equal(execCalls[0].args[4], models[0]);
-    assert.equal(execCalls[1].args[4], models[1]);
+    assert.equal(getFlagValue(execCalls[0].args, "--model"), models[0]);
+    assert.equal(getFlagValue(execCalls[1].args, "--model"), models[1]);
     assert.equal(result.code, 0);
     assert.equal(result.modelUsed, models[1]);
     assert.deepEqual(result.attemptedModels, models);

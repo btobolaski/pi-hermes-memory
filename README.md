@@ -491,6 +491,7 @@ Background review, correction saves, flushes, and auto-consolidation all run in 
 - `backgroundModels` is a fallback chain for most background subprocesses. Background review, correction-save, auto-consolidation, and compaction flush retry in order until one succeeds; session-shutdown flush is intentionally capped to one attempt.
 - `logBackgroundSessions` defaults to `true`, so background token usage is now auditable in a dedicated session directory.
 - `backgroundSessionDir` defaults to `~/.pi/agent/sessions/pi-hermes-memory`, which keeps these sessions separate from the main `pi --resume` picker. Use `pi --session-dir <dir> --resume` to inspect them directly.
+- **Tool access is restricted**: background subprocesses run with `--tools find,grep,ls,memory,memory_search,read`. They cannot invoke `bash`, `edit`, `write`, or the `skill` tool. File reads are further subject to Pi's permission system.
 
 ## Where Data Lives
 
